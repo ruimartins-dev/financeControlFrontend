@@ -1,0 +1,32 @@
+# Docker Compose for Finance Control Frontend
+# Run with: docker compose up --build
+
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: financecontrol-frontend
+    container_name: financecontrol-frontend
+    ports:
+      - "5173:80"  # Map host port 5173 to container port 80
+    environment:
+      # Note: VITE_API_URL is used at BUILD time, not runtime
+      # For runtime configuration, you would need to inject at nginx level
+      - VITE_API_URL=http://host.docker.internal:8080
+    restart: unless-stopped
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# Notes:
+# - host.docker.internal allows container to reach host machine
+# - On Linux, you may need to add: extra_hosts: ["host.docker.internal:host-gateway"]
+# - For production, replace VITE_API_URL with your actual API URL
