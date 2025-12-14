@@ -1,99 +1,86 @@
 import React, { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { postJson, ApiError } from '../lib/api';
 import { Toast, useToast } from '../components/Toast';
+import { LanguageSelector } from '../components/LanguageSelector';
 import type { RegisterDto } from '../types/dtos';
 
 /**
  * Register Page Component
- * Provides a form for new users to create an account
  */
 export const RegisterPage: React.FC = () => {
-  // Form state
+  const { t } = useTranslation();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Hooks
   const navigate = useNavigate();
   const [toast, showToast, hideToast] = useToast();
 
-  /**
-   * Validate email format
-   */
   const isValidEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
 
-  /**
-   * Handle form submission
-   * Validates input and attempts registration
-   */
   const handleSubmit = async (e: FormEvent): Promise<void> => {
     e.preventDefault();
 
-    // Validation
     if (!username.trim()) {
-      showToast('Username is required', 'error');
+      showToast(t('errors.requiredField'), 'error');
       return;
     }
     if (username.length < 3) {
-      showToast('Username must be at least 3 characters', 'error');
+      showToast(t('errors.minLength', { field: t('auth.username'), length: 3 }), 'error');
       return;
     }
     if (!email.trim()) {
-      showToast('Email is required', 'error');
+      showToast(t('errors.requiredField'), 'error');
       return;
     }
     if (!isValidEmail(email)) {
-      showToast('Please enter a valid email address', 'error');
+      showToast(t('errors.invalidEmail'), 'error');
       return;
     }
     if (!password) {
-      showToast('Password is required', 'error');
+      showToast(t('errors.requiredField'), 'error');
       return;
     }
     if (password.length < 6) {
-      showToast('Password must be at least 6 characters', 'error');
+      showToast(t('errors.minLength', { field: t('auth.password'), length: 6 }), 'error');
       return;
     }
     if (password !== confirmPassword) {
-      showToast('Passwords do not match', 'error');
+      showToast(t('errors.passwordMismatch'), 'error');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      // Prepare registration data
       const registerData: RegisterDto = {
         username: username.trim(),
         email: email.trim(),
         password,
       };
 
-      // Call registration endpoint (no auth required)
       await postJson('/api/auth/register', registerData, false);
-
-      showToast('Registration successful! Please log in.', 'success');
+      showToast(t('common.success'), 'success');
       
-      // Redirect to login page after short delay
       setTimeout(() => {
         navigate('/login');
       }, 1500);
     } catch (error) {
-      // Handle API errors
       if (error instanceof ApiError) {
         if (error.status === 409) {
-          showToast('Username or email already exists', 'error');
+          showToast(t('errors.alreadyExists'), 'error');
         } else {
           showToast(error.message, 'error');
         }
       } else {
-        showToast('Registration failed. Please try again.', 'error');
+        showToast(t('errors.generic'), 'error');
       }
     } finally {
       setIsSubmitting(false);
@@ -102,58 +89,64 @@ export const RegisterPage: React.FC = () => {
 
   return (
     <div className="auth-page">
+      <div className="auth-language-selector">
+        <LanguageSelector />
+      </div>
       <div className="auth-container">
-        <h1>Register</h1>
-        <p className="auth-subtitle">Create an account to get started.</p>
+        <div className="auth-header">
+          <div className="auth-logo">💰</div>
+          <h1>{t('auth.registerTitle')}</h1>
+          <p className="auth-subtitle">{t('auth.registerSubtitle')}</p>
+        </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-group">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="username">{t('auth.username')}</label>
             <input
               type="text"
               id="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="Choose a username"
+              placeholder={t('auth.username')}
               disabled={isSubmitting}
               autoComplete="username"
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="email">{t('auth.email')}</label>
             <input
               type="email"
               id="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
+              placeholder={t('auth.email')}
               disabled={isSubmitting}
               autoComplete="email"
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">{t('auth.password')}</label>
             <input
               type="password"
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Choose a password (min 6 characters)"
+              placeholder={t('auth.password')}
               disabled={isSubmitting}
               autoComplete="new-password"
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="confirmPassword">Confirm Password</label>
+            <label htmlFor="confirmPassword">{t('auth.confirmPassword')}</label>
             <input
               type="password"
               id="confirmPassword"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm your password"
+              placeholder={t('auth.confirmPassword')}
               disabled={isSubmitting}
               autoComplete="new-password"
             />
@@ -161,19 +154,18 @@ export const RegisterPage: React.FC = () => {
 
           <button
             type="submit"
-            className="btn btn-primary btn-block"
+            className="btn btn-primary btn-block btn-lg"
             disabled={isSubmitting}
           >
-            {isSubmitting ? 'Creating account...' : 'Register'}
+            {isSubmitting ? t('auth.registering') : t('auth.register')}
           </button>
         </form>
 
         <p className="auth-footer">
-          Already have an account? <Link to="/login">Login here</Link>
+          {t('auth.hasAccount')} <Link to="/login">{t('auth.login')}</Link>
         </p>
       </div>
 
-      {/* Toast notification */}
       {toast && (
         <Toast message={toast.message} type={toast.type} onClose={hideToast} />
       )}

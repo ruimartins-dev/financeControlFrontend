@@ -59,3 +59,32 @@ export interface RegisterDto {
   email: string;
   password: string;
 }
+
+// Category information returned from the API
+export interface CategoryDto {
+  id: number;
+  name: string;
+  type: TransactionType;
+  isDefault: boolean;
+  userId?: number;
+  subcategories?: SubcategoryDto[];
+}
+
+// Subcategory information returned from the API
+export interface SubcategoryDto {
+  id: number;
+  name: string;
+  categoryId: number;
+}
+
+// Data needed to create a new category
+export interface CreateCategoryDto {
+  name: string;
+  type: TransactionType;
+}
+
+// Data needed to create a new subcategory
+export interface CreateSubcategoryDto {
+  name: string;
+  categoryId: number;
+}

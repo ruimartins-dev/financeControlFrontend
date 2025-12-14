@@ -1,8 +1,49 @@
 import React, { useState, useEffect, useCallback, type FormEvent } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { getJson, postJson, deleteJson, ApiError } from '../lib/api';
 import { Toast, useToast } from '../components/Toast';
-import type { TransactionDto, CreateTransactionDto, TransactionType, WalletDto } from '../types/dtos';
+import { Dropdown, type DropdownOption } from '../components/Dropdown';
+import type { TransactionDto, CreateTransactionDto, TransactionType, WalletDto, CategoryDto, SubcategoryDto } from '../types/dtos';
+
+// Mapeamento de nomes de categorias padrão para chaves de tradução
+const categoryNameToKey: Record<string, string> = {
+  'Bills & Utilities': 'billsUtilities',
+  'Education': 'education',
+  'Entertainment': 'entertainment',
+  'Food & Dining': 'foodDining',
+  'Freelance': 'freelance',
+  'Gifts Received': 'giftsReceived',
+};
+
+// Mapeamento de nomes de subcategorias padrão para chaves de tradução
+const subcategoryNameToKey: Record<string, string> = {
+  'Electricity': 'electricity',
+  'General': 'general',
+  'Internet': 'internet',
+  'Phone': 'phone',
+  'Rent/Mortgage': 'rentMortgage',
+  'Water': 'water',
+  'Books': 'books',
+  'Courses': 'courses',
+  'School Supplies': 'schoolSupplies',
+  'Tuition': 'tuition',
+  'Concerts': 'concerts',
+  'Games': 'games',
+  'Movies': 'movies',
+  'Sports': 'sports',
+  'Subscriptions': 'subscriptions',
+  'Coffee': 'coffee',
+  'Delivery': 'delivery',
+  'Fast Food': 'fastFood',
+  'Groceries': 'groceries',
+  'Restaurants': 'restaurants',
+  'Consulting': 'consulting',
+  'Gigs': 'gigs',
+  'Projects': 'projects',
+  'Birthday': 'birthday',
+  'Holiday': 'holiday',
+};
 
 /**
  * Wallet Detail Page Component
@@ -10,6 +51,58 @@ import type { TransactionDto, CreateTransactionDto, TransactionType, WalletDto }
  */
 export const WalletDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+
+  /**
+   * Traduz o nome da categoria se for uma categoria padrão (sem userId)
+   */
+  const translateCategoryName = (category: CategoryDto): string => {
+    if (category.userId) {
+      return category.name;
+    }
+    const key = categoryNameToKey[category.name];
+    if (key) {
+      return t(`defaultCategories.${key}`);
+    }
+    return category.name;
+  };
+
+  /**
+   * Traduz o nome da categoria pelo nome (para transações)
+   */
+  const translateCategoryNameByString = (categoryName: string): string => {
+    const key = categoryNameToKey[categoryName];
+    if (key) {
+      return t(`defaultCategories.${key}`);
+    }
+    return categoryName;
+  };
+
+  /**
+   * Traduz o nome da subcategoria se pertencer a uma categoria padrão (sem userId)
+   */
+  const translateSubcategoryName = (subcategory: SubcategoryDto, category: CategoryDto): string => {
+    if (category.userId) {
+      return subcategory.name;
+    }
+    const key = subcategoryNameToKey[subcategory.name];
+    if (key) {
+      return t(`defaultSubcategories.${key}`);
+    }
+    return subcategory.name;
+  };
+
+  /**
+   * Traduz o nome da subcategoria pelo nome (para transações)
+   */
+  const translateSubcategoryNameByString = (subcategoryName: string): string => {
+    const key = subcategoryNameToKey[subcategoryName];
+    if (key) {
+      return t(`defaultSubcategories.${key}`);
+    }
+    return subcategoryName;
+  };
 
   // State
   const [wallet, setWallet] = useState<WalletDto | null>(null);
@@ -18,6 +111,10 @@ export const WalletDetailPage: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Categories state
+  const [categories, setCategories] = useState<CategoryDto[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+
   // Filter state
   const [filterType, setFilterType] = useState<TransactionType | ''>('');
   const [filterFromDate, setFilterFromDate] = useState('');
@@ -25,14 +122,55 @@ export const WalletDetailPage: React.FC = () => {
 
   // New transaction form state
   const [newType, setNewType] = useState<TransactionType>('DEBIT');
-  const [newCategory, setNewCategory] = useState('');
-  const [newSubcategory, setNewSubcategory] = useState('');
+  const [newCategoryId, setNewCategoryId] = useState<number | ''>('');
+  const [newSubcategoryId, setNewSubcategoryId] = useState<number | ''>('');
   const [newAmount, setNewAmount] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
 
+  // Create category modal state
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+
+  // Create subcategory modal state
+  const [showSubcategoryModal, setShowSubcategoryModal] = useState(false);
+  const [newSubcategoryName, setNewSubcategoryName] = useState('');
+  const [subcategoryCategoryId, setSubcategoryCategoryId] = useState<number | ''>('');
+  const [isCreatingSubcategory, setIsCreatingSubcategory] = useState(false);
+
   // Hooks
   const [toast, showToast, hideToast] = useToast();
+
+  /**
+   * Get filtered categories based on transaction type
+   */
+  const filteredCategories = categories.filter(cat => cat.type === newType);
+
+  /**
+   * Get subcategories for selected category
+   */
+  const selectedCategory = categories.find(cat => cat.id === newCategoryId);
+  const availableSubcategories = selectedCategory?.subcategories || [];
+
+  /**
+   * Fetch categories from API
+   */
+  const fetchCategories = useCallback(async () => {
+    setIsLoadingCategories(true);
+    try {
+      const data = await getJson<CategoryDto[]>('/api/categories');
+      setCategories(data);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        showToast(`Failed to load categories: ${error.message}`, 'error');
+      } else {
+        showToast('Failed to load categories', 'error');
+      }
+    } finally {
+      setIsLoadingCategories(false);
+    }
+  }, [showToast]);
 
   /**
    * Fetch wallet details
@@ -43,12 +181,17 @@ export const WalletDetailPage: React.FC = () => {
       setWallet(data);
     } catch (error) {
       if (error instanceof ApiError) {
+        // Redirect to dashboard if user doesn't have access (403) or wallet doesn't exist (404)
+        if (error.status === 403 || error.status === 404) {
+          navigate('/dashboard');
+          return;
+        }
         showToast(error.message, 'error');
       } else {
         showToast('Failed to load wallet', 'error');
       }
     }
-  }, [id, showToast]);
+  }, [id, showToast, navigate]);
 
   /**
    * Fetch transactions from API
@@ -66,6 +209,11 @@ export const WalletDetailPage: React.FC = () => {
       setTransactions(data);
     } catch (error) {
       if (error instanceof ApiError) {
+        // Redirect to dashboard if user doesn't have access (403) or wallet doesn't exist (404)
+        if (error.status === 403 || error.status === 404) {
+          navigate('/dashboard');
+          return;
+        }
         showToast(error.message, 'error');
       } else {
         showToast('Failed to load transactions', 'error');
@@ -73,15 +221,27 @@ export const WalletDetailPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [id, filterType, filterFromDate, filterToDate, showToast]);
+  }, [id, filterType, filterFromDate, filterToDate, showToast, navigate]);
 
   // Load data on mount and when filters change
   useEffect(() => {
     if (id) {
       fetchWallet();
       fetchTransactions();
+      fetchCategories();
     }
-  }, [id, fetchWallet, fetchTransactions]);
+  }, [id, fetchWallet, fetchTransactions, fetchCategories]);
+
+  // Reset category and subcategory when transaction type changes
+  useEffect(() => {
+    setNewCategoryId('');
+    setNewSubcategoryId('');
+  }, [newType]);
+
+  // Reset subcategory when category changes
+  useEffect(() => {
+    setNewSubcategoryId('');
+  }, [newCategoryId]);
 
   /**
    * Handle create transaction form submission
@@ -89,7 +249,7 @@ export const WalletDetailPage: React.FC = () => {
   const handleCreateTransaction = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!newCategory.trim()) {
+    if (!newCategoryId) {
       showToast('Category is required', 'error');
       return;
     }
@@ -102,13 +262,21 @@ export const WalletDetailPage: React.FC = () => {
       return;
     }
 
+    const category = categories.find(c => c.id === newCategoryId);
+    const subcategory = category?.subcategories?.find(s => s.id === newSubcategoryId);
+
+    if (!category) {
+      showToast('Invalid category selected', 'error');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const transactionData: CreateTransactionDto = {
         type: newType,
-        category: newCategory.trim(),
-        subcategory: newSubcategory.trim() || undefined,
+        category: category.name,
+        subcategory: subcategory?.name || undefined,
         amount: parseFloat(newAmount),
         description: newDescription.trim() || undefined,
         date: newDate,
@@ -121,17 +289,15 @@ export const WalletDetailPage: React.FC = () => {
 
       setTransactions([newTransaction, ...transactions]);
       
-      // Update wallet balance
       if (wallet) {
         const balanceChange = newType === 'CREDIT' ? parseFloat(newAmount) : -parseFloat(newAmount);
         setWallet({ ...wallet, balance: wallet.balance + balanceChange });
       }
 
-      // Reset form
       setShowModal(false);
       setNewType('DEBIT');
-      setNewCategory('');
-      setNewSubcategory('');
+      setNewCategoryId('');
+      setNewSubcategoryId('');
       setNewAmount('');
       setNewDescription('');
       setNewDate(new Date().toISOString().split('T')[0]);
@@ -159,7 +325,6 @@ export const WalletDetailPage: React.FC = () => {
     try {
       await deleteJson(`/api/transactions/${transactionId}`);
       
-      // Find the deleted transaction to update balance
       const deletedTransaction = transactions.find(t => t.id === transactionId);
       if (deletedTransaction && wallet) {
         const balanceChange = deletedTransaction.type === 'CREDIT' 
@@ -180,29 +345,115 @@ export const WalletDetailPage: React.FC = () => {
   };
 
   /**
-   * Format currency value
+   * Handle create new category
    */
-  const formatCurrency = (amount: number, currency: string = 'EUR'): string => {
-    if (isNaN(amount)) {
-        amount = 0;
+  const handleCreateCategory = async (e: FormEvent) => {
+    e.preventDefault();
+
+    if (!newCategoryName.trim()) {
+      showToast('Category name is required', 'error');
+      return;
     }
-    
+
+    setIsCreatingCategory(true);
+
+    try {
+      const newCategory = await postJson<CategoryDto>('/api/categories', {
+        name: newCategoryName.trim(),
+        type: newType,
+      });
+
+      setCategories([...categories, newCategory]);
+      setNewCategoryId(newCategory.id);
+      setShowCategoryModal(false);
+      setNewCategoryName('');
+      showToast('Category created successfully!', 'success');
+    } catch (error) {
+      if (error instanceof ApiError) {
+        showToast(error.message, 'error');
+      } else {
+        showToast('Failed to create category', 'error');
+      }
+    } finally {
+      setIsCreatingCategory(false);
+    }
+  };
+
+  /**
+   * Handle create new subcategory
+   */
+  const handleCreateSubcategory = async (e: FormEvent) => {
+    e.preventDefault();
+
+    if (!newSubcategoryName.trim()) {
+      showToast('Subcategory name is required', 'error');
+      return;
+    }
+
+    if (!subcategoryCategoryId) {
+      showToast('Please select a category', 'error');
+      return;
+    }
+
+    setIsCreatingSubcategory(true);
+
+    try {
+      const newSubcategory = await postJson<SubcategoryDto>('/api/categories/subcategories', {
+        name: newSubcategoryName.trim(),
+        categoryId: subcategoryCategoryId,
+      });
+
+      setCategories(categories.map(cat => {
+        if (cat.id === subcategoryCategoryId) {
+          return {
+            ...cat,
+            subcategories: [...(cat.subcategories || []), newSubcategory],
+          };
+        }
+        return cat;
+      }));
+
+      if (subcategoryCategoryId === newCategoryId) {
+        setNewSubcategoryId(newSubcategory.id);
+      }
+
+      setShowSubcategoryModal(false);
+      setNewSubcategoryName('');
+      setSubcategoryCategoryId('');
+      showToast('Subcategory created successfully!', 'success');
+    } catch (error) {
+      if (error instanceof ApiError) {
+        showToast(error.message, 'error');
+      } else {
+        showToast('Failed to create subcategory', 'error');
+      }
+    } finally {
+      setIsCreatingSubcategory(false);
+    }
+  };
+
+  /**
+   * Open subcategory modal with pre-selected category
+   */
+  const openSubcategoryModal = () => {
+    if (newCategoryId) {
+      setSubcategoryCategoryId(newCategoryId);
+    }
+    setShowSubcategoryModal(true);
+  };
+
+  const formatCurrency = (amount: number | undefined | null, currency: string = 'EUR'): string => {
+    const value = Number(amount) || 0;
     return new Intl.NumberFormat('pt-PT', {
       style: 'currency',
       currency: currency,
-    }).format(amount);
+    }).format(value);
   };
 
-  /**
-   * Format date for display
-   */
   const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString('pt-BR');
+    return new Date(dateString).toLocaleDateString('pt-PT');
   };
 
-  /**
-   * Clear all filters
-   */
   const clearFilters = () => {
     setFilterType('');
     setFilterFromDate('');
@@ -210,13 +461,12 @@ export const WalletDetailPage: React.FC = () => {
   };
 
   if (isLoading) {
-    return <div className="loading">Loading transactions...</div>;
+    return <div className="loading">{t('common.loading')}</div>;
   }
 
   return (
     <div className="page wallet-detail-page">
-      {/* Back link and header */}
-      <Link to="/wallets" className="back-link">← Back to Wallets</Link>
+      <Link to="/wallets" className="back-link">{t('wallets.backToWallets')}</Link>
 
       {wallet && (
         <div className="wallet-header">
@@ -227,25 +477,24 @@ export const WalletDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* Filters */}
       <div className="filters-section">
-        <h3>Filters</h3>
+        <h3>{t('transactions.filters')}</h3>
         <div className="filters-row">
           <div className="form-group">
-            <label htmlFor="filterType">Type</label>
-            <select
-              id="filterType"
+            <label>{t('transactions.type')}</label>
+            <Dropdown
+              options={[
+                { value: '', label: t('common.all'), icon: '📋' },
+                { value: 'DEBIT', label: t('transactions.debit'), icon: '📤' },
+                { value: 'CREDIT', label: t('transactions.credit'), icon: '📥' },
+              ]}
               value={filterType}
-              onChange={(e) => setFilterType(e.target.value as TransactionType | '')}
-            >
-              <option value="">All</option>
-              <option value="DEBIT">Debit</option>
-              <option value="CREDIT">Credit</option>
-            </select>
+              onChange={(val) => setFilterType(val as TransactionType | '')}
+            />
           </div>
 
           <div className="form-group">
-            <label htmlFor="filterFromDate">From Date</label>
+            <label htmlFor="filterFromDate">{t('transactions.fromDate')}</label>
             <input
               type="date"
               id="filterFromDate"
@@ -255,7 +504,7 @@ export const WalletDetailPage: React.FC = () => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="filterToDate">To Date</label>
+            <label htmlFor="filterToDate">{t('transactions.toDate')}</label>
             <input
               type="date"
               id="filterToDate"
@@ -269,27 +518,25 @@ export const WalletDetailPage: React.FC = () => {
             className="btn btn-secondary"
             onClick={clearFilters}
           >
-            Clear Filters
+            {t('transactions.clearFilters')}
           </button>
         </div>
       </div>
 
-      {/* Transactions header */}
       <div className="page-header">
-        <h2>Transactions</h2>
+        <h2>{t('transactions.title')}</h2>
         <button
           className="btn btn-primary"
           onClick={() => setShowModal(true)}
         >
-          + New Transaction
+          + {t('transactions.newTransaction')}
         </button>
       </div>
 
-      {/* Transactions List */}
       {transactions.length === 0 ? (
         <div className="empty-state">
-          <p>No transactions found.</p>
-          <p>Create your first transaction to start tracking!</p>
+          <p>{t('transactions.noTransactions')}</p>
+          <p>{t('transactions.noTransactionsDescription')}</p>
         </div>
       ) : (
         <div className="transactions-list">
@@ -303,9 +550,9 @@ export const WalletDetailPage: React.FC = () => {
                   <span className={`transaction-type ${transaction.type.toLowerCase()}`}>
                     {transaction.type === 'CREDIT' ? '+' : '-'}
                   </span>
-                  <span className="transaction-category">{transaction.category}</span>
+                  <span className="transaction-category">{translateCategoryNameByString(transaction.category)}</span>
                   {transaction.subcategory && (
-                    <span className="transaction-subcategory">/ {transaction.subcategory}</span>
+                    <span className="transaction-subcategory">/ {translateSubcategoryNameByString(transaction.subcategory)}</span>
                   )}
                 </div>
                 {transaction.description && (
@@ -335,24 +582,24 @@ export const WalletDetailPage: React.FC = () => {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal modal-large" onClick={(e) => e.stopPropagation()}>
-            <h2>New Transaction</h2>
+            <h2>{t('transactions.newTransaction')}</h2>
             <form onSubmit={handleCreateTransaction}>
               <div className="form-row">
                 <div className="form-group">
-                  <label htmlFor="transactionType">Type</label>
-                  <select
-                    id="transactionType"
+                  <label>{t('transactions.type')}</label>
+                  <Dropdown
+                    options={[
+                      { value: 'DEBIT', label: `${t('transactions.debit')} (${t('transactions.expense')})`, icon: '📤' },
+                      { value: 'CREDIT', label: `${t('transactions.credit')} (${t('transactions.income')})`, icon: '📥' },
+                    ]}
                     value={newType}
-                    onChange={(e) => setNewType(e.target.value as TransactionType)}
+                    onChange={(val) => setNewType(val as TransactionType)}
                     disabled={isSubmitting}
-                  >
-                    <option value="DEBIT">Debit (Expense)</option>
-                    <option value="CREDIT">Credit (Income)</option>
-                  </select>
+                  />
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="transactionAmount">Amount</label>
+                  <label htmlFor="transactionAmount">{t('transactions.amount')} *</label>
                   <input
                     type="number"
                     id="transactionAmount"
@@ -368,32 +615,61 @@ export const WalletDetailPage: React.FC = () => {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label htmlFor="transactionCategory">Category *</label>
-                  <input
-                    type="text"
-                    id="transactionCategory"
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
-                    placeholder="e.g., Food, Transport, Salary"
-                    disabled={isSubmitting}
-                  />
+                  <label>{t('transactions.category')} *</label>
+                  <div className="input-with-button">
+                    <Dropdown
+                      options={filteredCategories.map((category): DropdownOption => ({
+                        value: category.id,
+                        label: translateCategoryName(category),
+                        badge: category.isDefault ? t('categories.default') : undefined,
+                      }))}
+                      value={newCategoryId}
+                      onChange={(val) => setNewCategoryId(val as number)}
+                      placeholder={isLoadingCategories ? t('common.loading') : t('transactions.selectCategory')}
+                      disabled={isSubmitting || isLoadingCategories}
+                      searchable
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => setShowCategoryModal(true)}
+                      disabled={isSubmitting}
+                      title={t('categories.createCategory')}
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="transactionSubcategory">Subcategory</label>
-                  <input
-                    type="text"
-                    id="transactionSubcategory"
-                    value={newSubcategory}
-                    onChange={(e) => setNewSubcategory(e.target.value)}
-                    placeholder="e.g., Restaurant, Uber"
-                    disabled={isSubmitting}
-                  />
+                  <label>{t('transactions.subcategory')}</label>
+                  <div className="input-with-button">
+                    <Dropdown
+                      options={selectedCategory ? availableSubcategories.map((subcategory): DropdownOption => ({
+                        value: subcategory.id,
+                        label: translateSubcategoryName(subcategory, selectedCategory),
+                      })) : []}
+                      value={newSubcategoryId}
+                      onChange={(val) => setNewSubcategoryId(val as number)}
+                      placeholder={t('transactions.selectSubcategory')}
+                      disabled={isSubmitting || !newCategoryId}
+                      searchable
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={openSubcategoryModal}
+                      disabled={isSubmitting || !newCategoryId}
+                      title={t('categories.createSubcategory')}
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
               </div>
 
               <div className="form-group">
-                <label htmlFor="transactionDate">Date *</label>
+                <label htmlFor="transactionDate">{t('transactions.date')} *</label>
                 <input
                   type="date"
                   id="transactionDate"
@@ -404,12 +680,12 @@ export const WalletDetailPage: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label htmlFor="transactionDescription">Description</label>
+                <label htmlFor="transactionDescription">{t('transactions.description')}</label>
                 <textarea
                   id="transactionDescription"
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}
-                  placeholder="Optional description..."
+                  placeholder={t('transactions.descriptionPlaceholder')}
                   disabled={isSubmitting}
                   rows={2}
                 />
@@ -422,14 +698,14 @@ export const WalletDetailPage: React.FC = () => {
                   onClick={() => setShowModal(false)}
                   disabled={isSubmitting}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
                   className="btn btn-primary"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? 'Creating...' : 'Create Transaction'}
+                  {isSubmitting ? t('transactions.creating') : t('transactions.createTransaction')}
                 </button>
               </div>
             </form>
@@ -437,7 +713,104 @@ export const WalletDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* Toast notification */}
+      {/* Create Category Modal */}
+      {showCategoryModal && (
+        <div className="modal-overlay" onClick={() => setShowCategoryModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>{t('categories.newCategory')}</h2>
+            <p className="modal-subtitle">
+              {t('transactions.type')}: {newType === 'DEBIT' ? t('transactions.expense') : t('transactions.income')}
+            </p>
+            <form onSubmit={handleCreateCategory}>
+              <div className="form-group">
+                <label htmlFor="newCategoryName">{t('categories.categoryName')} *</label>
+                <input
+                  type="text"
+                  id="newCategoryName"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder={t('categories.categoryNamePlaceholder')}
+                  disabled={isCreatingCategory}
+                  autoFocus
+                />
+              </div>
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowCategoryModal(false)}
+                  disabled={isCreatingCategory}
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={isCreatingCategory}
+                >
+                  {isCreatingCategory ? t('categories.creating') : t('categories.createCategory')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Subcategory Modal */}
+      {showSubcategoryModal && (
+        <div className="modal-overlay" onClick={() => setShowSubcategoryModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>{t('categories.newSubcategory')}</h2>
+            <form onSubmit={handleCreateSubcategory}>
+              <div className="form-group">
+                <label>{t('transactions.category')} *</label>
+                <Dropdown
+                  options={filteredCategories.map((category): DropdownOption => ({
+                    value: category.id,
+                    label: translateCategoryName(category),
+                    badge: category.isDefault ? t('categories.default') : undefined,
+                  }))}
+                  value={subcategoryCategoryId}
+                  onChange={(val) => setSubcategoryCategoryId(val as number)}
+                  placeholder={t('transactions.selectCategory')}
+                  disabled={isCreatingSubcategory}
+                  searchable
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="newSubcategoryName">{t('categories.subcategoryName')} *</label>
+                <input
+                  type="text"
+                  id="newSubcategoryName"
+                  value={newSubcategoryName}
+                  onChange={(e) => setNewSubcategoryName(e.target.value)}
+                  placeholder={t('categories.subcategoryNamePlaceholder')}
+                  disabled={isCreatingSubcategory}
+                  autoFocus
+                />
+              </div>
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowSubcategoryModal(false)}
+                  disabled={isCreatingSubcategory}
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={isCreatingSubcategory}
+                >
+                  {isCreatingSubcategory ? t('categories.creating') : t('categories.createSubcategory')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {toast && (
         <Toast message={toast.message} type={toast.type} onClose={hideToast} />
       )}

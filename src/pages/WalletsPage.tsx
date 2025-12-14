@@ -1,28 +1,24 @@
 import React, { useState, useEffect, useCallback, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { getJson, postJson, ApiError } from '../lib/api';
 import { Toast, useToast } from '../components/Toast';
 import type { WalletDto, CreateWalletDto } from '../types/dtos';
 
 /**
  * Wallets Page Component
- * Displays a list of user's wallets and allows creating new ones
  */
 export const WalletsPage: React.FC = () => {
-  // State
+  const { t, i18n } = useTranslation();
   const [wallets, setWallets] = useState<WalletDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [newWalletName, setNewWalletName] = useState('');
-  const [newWalletCurrency, setNewWalletCurrency] = useState('BRL');
+  const [newWalletCurrency, setNewWalletCurrency] = useState('EUR');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Hooks
   const [toast, showToast, hideToast] = useToast();
 
-  /**
-   * Fetch wallets from API
-   */
   const fetchWallets = useCallback(async () => {
     try {
       const data = await getJson<WalletDto[]>('/api/wallets');
@@ -31,26 +27,22 @@ export const WalletsPage: React.FC = () => {
       if (error instanceof ApiError) {
         showToast(error.message, 'error');
       } else {
-        showToast('Failed to load wallets', 'error');
+        showToast(t('wallets.loadError'), 'error');
       }
     } finally {
       setIsLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, t]);
 
-  // Load wallets on mount
   useEffect(() => {
     fetchWallets();
   }, [fetchWallets]);
 
-  /**
-   * Handle create wallet form submission
-   */
   const handleCreateWallet = async (e: FormEvent) => {
     e.preventDefault();
 
     if (!newWalletName.trim()) {
-      showToast('Wallet name is required', 'error');
+      showToast(t('wallets.nameRequired'), 'error');
       return;
     }
 
@@ -66,54 +58,80 @@ export const WalletsPage: React.FC = () => {
       setWallets([...wallets, newWallet]);
       setShowModal(false);
       setNewWalletName('');
-      setNewWalletCurrency('BRL');
-      showToast('Wallet created successfully!', 'success');
+      setNewWalletCurrency('EUR');
+      showToast(t('wallets.createSuccess'), 'success');
     } catch (error) {
       if (error instanceof ApiError) {
         showToast(error.message, 'error');
       } else {
-        showToast('Failed to create wallet', 'error');
+        showToast(t('wallets.createError'), 'error');
       }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  /**
-   * Format currency value
-   */
-  const formatCurrency = (amount: number, currency: string): string => {
-    if (isNaN(amount)) {
-        amount = 0;
-    }
-
-    return new Intl.NumberFormat('pt-PT', {
+  const formatCurrency = (amount: number | undefined | null, currency: string): string => {
+    const value = Number(amount) || 0;
+    const locale = i18n.language === 'pt' ? 'pt-PT' : 'en-GB';
+    return new Intl.NumberFormat(locale, {
       style: 'currency',
       currency: currency,
-    }).format(amount);
+    }).format(value);
   };
 
+  const getCurrencyIcon = (currency: string): string => {
+    switch (currency) {
+      case 'EUR': return '€';
+      case 'USD': return '$';
+      case 'GBP': return '£';
+      case 'BRL': return 'R$';
+      default: return '💰';
+    }
+  };
+
+  const totalBalance = wallets.reduce((sum, wallet) => sum + (Number(wallet.balance) || 0), 0);
+
   if (isLoading) {
-    return <div className="loading">Loading wallets...</div>;
+    return (
+      <div className="page-loading">
+        <div className="spinner"></div>
+        <p>{t('common.loading')}</p>
+      </div>
+    );
   }
 
   return (
-    <div className="page wallets-page">
+    <div className="wallets-page">
       <div className="page-header">
-        <h1>My Wallets</h1>
+        <div>
+          <h1>{t('wallets.title')}</h1>
+          <p className="page-subtitle">
+            {wallets.length > 0 
+              ? `${t('wallets.totalBalance')}: ${formatCurrency(totalBalance, 'EUR')}`
+              : t('wallets.subtitle')}
+          </p>
+        </div>
         <button
           className="btn btn-primary"
           onClick={() => setShowModal(true)}
         >
-          + New Wallet
+          <span className="btn-icon">+</span>
+          {t('wallets.newWallet')}
         </button>
       </div>
 
-      {/* Wallets List */}
       {wallets.length === 0 ? (
         <div className="empty-state">
-          <p>You don't have any wallets yet.</p>
-          <p>Create your first wallet to start tracking your finances!</p>
+          <div className="empty-state-icon">👛</div>
+          <h3>{t('wallets.noWallets')}</h3>
+          <p>{t('wallets.noWalletsDescription')}</p>
+          <button
+            className="btn btn-primary"
+            onClick={() => setShowModal(true)}
+          >
+            {t('wallets.createWallet')}
+          </button>
         </div>
       ) : (
         <div className="wallets-grid">
@@ -123,11 +141,16 @@ export const WalletsPage: React.FC = () => {
               to={`/wallets/${wallet.id}`}
               className="wallet-card"
             >
+              <div className="wallet-card-header">
+                <div className="wallet-card-icon">
+                  {getCurrencyIcon(wallet.currency)}
+                </div>
+              </div>
               <h3>{wallet.name}</h3>
-              <p className="wallet-balance">
+              <span className="currency-badge">{wallet.currency}</span>
+              <p className={`wallet-card-balance ${(Number(wallet.balance) || 0) >= 0 ? 'positive' : 'negative'}`}>
                 {formatCurrency(wallet.balance, wallet.currency)}
               </p>
-              <span className="wallet-currency">{wallet.currency}</span>
             </Link>
           ))}
         </div>
@@ -137,33 +160,34 @@ export const WalletsPage: React.FC = () => {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Create New Wallet</h2>
+            <h2>{t('wallets.createNewWallet')}</h2>
+            <p className="modal-subtitle">{t('wallets.createNewWalletDescription')}</p>
             <form onSubmit={handleCreateWallet}>
               <div className="form-group">
-                <label htmlFor="walletName">Wallet Name</label>
+                <label htmlFor="walletName">{t('wallets.walletName')}</label>
                 <input
                   type="text"
                   id="walletName"
                   value={newWalletName}
                   onChange={(e) => setNewWalletName(e.target.value)}
-                  placeholder="e.g., Main Account, Savings"
+                  placeholder={t('wallets.walletNamePlaceholder')}
                   disabled={isSubmitting}
                   autoFocus
                 />
               </div>
 
               <div className="form-group">
-                <label htmlFor="walletCurrency">Currency</label>
+                <label htmlFor="walletCurrency">{t('wallets.currency')}</label>
                 <select
                   id="walletCurrency"
                   value={newWalletCurrency}
                   onChange={(e) => setNewWalletCurrency(e.target.value)}
                   disabled={isSubmitting}
                 >
-                  <option value="BRL">BRL - Brazilian Real</option>
-                  <option value="USD">USD - US Dollar</option>
-                  <option value="EUR">EUR - Euro</option>
-                  <option value="GBP">GBP - British Pound</option>
+                  <option value="EUR">🇪🇺 EUR - Euro</option>
+                  <option value="USD">🇺🇸 USD - US Dollar</option>
+                  <option value="GBP">🇬🇧 GBP - British Pound</option>
+                  <option value="BRL">🇧🇷 BRL - Brazilian Real</option>
                 </select>
               </div>
 
@@ -174,14 +198,14 @@ export const WalletsPage: React.FC = () => {
                   onClick={() => setShowModal(false)}
                   disabled={isSubmitting}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
                   className="btn btn-primary"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? 'Creating...' : 'Create Wallet'}
+                  {isSubmitting ? t('common.creating') : t('wallets.createWallet')}
                 </button>
               </div>
             </form>
@@ -189,7 +213,6 @@ export const WalletsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Toast notification */}
       {toast && (
         <Toast message={toast.message} type={toast.type} onClose={hideToast} />
       )}

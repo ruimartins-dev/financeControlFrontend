@@ -33,6 +33,9 @@ export const NavBar: React.FC = () => {
           <Link to="/wallets" className="navbar-link">
             Wallets
           </Link>
+          <Link to="/categories" className="navbar-link">
+            Categories
+          </Link>
         </div>
 
         <div className="navbar-user">
