@@ -15,13 +15,18 @@ const categoryNameToKey: Record<string, string> = {
   'Gifts Received': 'giftsReceived',
 };
 
+// Wallet with calculated balance
+interface WalletWithBalance extends WalletDto {
+  calculatedBalance: number;
+}
+
 /**
  * Dashboard Page Component
  * Overview of financial status with key metrics
  */
 export const DashboardPage: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const [wallets, setWallets] = useState<WalletDto[]>([]);
+  const [wallets, setWallets] = useState<WalletWithBalance[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<TransactionDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [toast, showToast, hideToast] = useToast();
@@ -40,18 +45,31 @@ export const DashboardPage: React.FC = () => {
   const fetchData = useCallback(async () => {
     try {
       const walletsData = await getJson<WalletDto[]>('/api/wallets');
-      setWallets(walletsData);
-
-      // Fetch recent transactions from all wallets
+      
+      // Fetch transactions for each wallet to calculate balance
+      const walletsWithBalance: WalletWithBalance[] = [];
       const allTransactions: TransactionDto[] = [];
-      for (const wallet of walletsData.slice(0, 3)) {
+      
+      for (const wallet of walletsData) {
         try {
           const transactions = await getJson<TransactionDto[]>(`/api/wallets/${wallet.id}/transactions`);
-          allTransactions.push(...transactions.slice(0, 5));
+          const income = transactions
+            .filter(t => t.type === 'CREDIT')
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+          const expenses = transactions
+            .filter(t => t.type === 'DEBIT')
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+          const calculatedBalance = income - expenses;
+          
+          walletsWithBalance.push({ ...wallet, calculatedBalance });
+          allTransactions.push(...transactions);
         } catch {
-          // Ignore errors for individual wallet transactions
+          walletsWithBalance.push({ ...wallet, calculatedBalance: 0 });
         }
       }
+      
+      setWallets(walletsWithBalance);
+      
       // Sort by date and take most recent
       allTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setRecentTransactions(allTransactions.slice(0, 5));
@@ -70,7 +88,6 @@ export const DashboardPage: React.FC = () => {
     fetchData();
   }, [fetchData]);
 
-  const totalBalance = wallets.reduce((sum, wallet) => sum + (Number(wallet.balance) || 0), 0);
   const totalIncome = recentTransactions
     .filter(t => t.type === 'CREDIT')
     .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
@@ -123,7 +140,7 @@ export const DashboardPage: React.FC = () => {
           <div className="stat-icon">💰</div>
           <div className="stat-content">
             <span className="stat-label">{t('dashboard.totalBalance')}</span>
-            <span className="stat-value">{formatCurrency(totalBalance)}</span>
+            <span className="stat-value">{formatCurrency(totalIncome - totalExpenses)}</span>
             <span className="stat-change positive">
               <span>↑</span> {t('wallets.title')}
             </span>
@@ -187,8 +204,8 @@ export const DashboardPage: React.FC = () => {
                     <span className="wallet-item-name">{wallet.name}</span>
                     <span className="wallet-item-currency">{wallet.currency}</span>
                   </div>
-                  <span className={`wallet-item-balance ${(Number(wallet.balance) || 0) >= 0 ? 'positive' : 'negative'}`}>
-                    {formatCurrency(wallet.balance, wallet.currency)}
+                  <span className={`wallet-item-balance ${(wallet.calculatedBalance || 0) >= 0 ? 'positive' : 'negative'}`}>
+                    {formatCurrency(wallet.calculatedBalance, wallet.currency)}
                   </span>
                 </Link>
               ))

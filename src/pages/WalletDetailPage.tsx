@@ -119,6 +119,7 @@ export const WalletDetailPage: React.FC = () => {
   const [filterType, setFilterType] = useState<TransactionType | ''>('');
   const [filterFromDate, setFilterFromDate] = useState('');
   const [filterToDate, setFilterToDate] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
 
   // New transaction form state
   const [newType, setNewType] = useState<TransactionType>('DEBIT');
@@ -232,16 +233,25 @@ export const WalletDetailPage: React.FC = () => {
     }
   }, [id, fetchWallet, fetchTransactions, fetchCategories]);
 
-  // Reset category and subcategory when transaction type changes
+  // Auto-select first category when transaction type changes
   useEffect(() => {
-    setNewCategoryId('');
-    setNewSubcategoryId('');
-  }, [newType]);
+    const categoriesForType = categories.filter(cat => cat.type === newType);
+    if (categoriesForType.length > 0) {
+      setNewCategoryId(categoriesForType[0].id);
+    } else {
+      setNewCategoryId('');
+    }
+  }, [newType, categories]);
 
-  // Reset subcategory when category changes
+  // Auto-select first subcategory when category changes
   useEffect(() => {
-    setNewSubcategoryId('');
-  }, [newCategoryId]);
+    const category = categories.find(cat => cat.id === newCategoryId);
+    if (category?.subcategories && category.subcategories.length > 0) {
+      setNewSubcategoryId(category.subcategories[0].id);
+    } else {
+      setNewSubcategoryId('');
+    }
+  }, [newCategoryId, categories]);
 
   /**
    * Handle create transaction form submission
@@ -289,11 +299,6 @@ export const WalletDetailPage: React.FC = () => {
 
       setTransactions([newTransaction, ...transactions]);
       
-      if (wallet) {
-        const balanceChange = newType === 'CREDIT' ? parseFloat(newAmount) : -parseFloat(newAmount);
-        setWallet({ ...wallet, balance: wallet.balance + balanceChange });
-      }
-
       setShowModal(false);
       setNewType('DEBIT');
       setNewCategoryId('');
@@ -325,14 +330,6 @@ export const WalletDetailPage: React.FC = () => {
     try {
       await deleteJson(`/api/transactions/${transactionId}`);
       
-      const deletedTransaction = transactions.find(t => t.id === transactionId);
-      if (deletedTransaction && wallet) {
-        const balanceChange = deletedTransaction.type === 'CREDIT' 
-          ? -deletedTransaction.amount 
-          : deletedTransaction.amount;
-        setWallet({ ...wallet, balance: wallet.balance + balanceChange });
-      }
-
       setTransactions(transactions.filter(t => t.id !== transactionId));
       showToast('Transaction deleted successfully!', 'success');
     } catch (error) {
@@ -460,123 +457,178 @@ export const WalletDetailPage: React.FC = () => {
     setFilterToDate('');
   };
 
+  const hasActiveFilters = filterType !== '' || filterFromDate !== '' || filterToDate !== '';
+
   if (isLoading) {
     return <div className="loading">{t('common.loading')}</div>;
   }
 
   return (
     <div className="page wallet-detail-page">
-      <Link to="/wallets" className="back-link">{t('wallets.backToWallets')}</Link>
+      <Link to="/wallets" className="back-link">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        {t('wallets.backToWallets')}
+      </Link>
 
       {wallet && (
         <div className="wallet-header">
-          <h1>{wallet.name}</h1>
-          <p className="wallet-balance-large">
-            {formatCurrency(wallet.balance, wallet.currency)}
-          </p>
-        </div>
-      )}
-
-      <div className="filters-section">
-        <h3>{t('transactions.filters')}</h3>
-        <div className="filters-row">
-          <div className="form-group">
-            <label>{t('transactions.type')}</label>
-            <Dropdown
-              options={[
-                { value: '', label: t('common.all'), icon: '📋' },
-                { value: 'DEBIT', label: t('transactions.debit'), icon: '📤' },
-                { value: 'CREDIT', label: t('transactions.credit'), icon: '📥' },
-              ]}
-              value={filterType}
-              onChange={(val) => setFilterType(val as TransactionType | '')}
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="filterFromDate">{t('transactions.fromDate')}</label>
-            <input
-              type="date"
-              id="filterFromDate"
-              value={filterFromDate}
-              onChange={(e) => setFilterFromDate(e.target.value)}
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="filterToDate">{t('transactions.toDate')}</label>
-            <input
-              type="date"
-              id="filterToDate"
-              value={filterToDate}
-              onChange={(e) => setFilterToDate(e.target.value)}
-            />
-          </div>
-
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={clearFilters}
-          >
-            {t('transactions.clearFilters')}
-          </button>
-        </div>
-      </div>
-
-      <div className="page-header">
-        <h2>{t('transactions.title')}</h2>
-        <button
-          className="btn btn-primary"
-          onClick={() => setShowModal(true)}
-        >
-          + {t('transactions.newTransaction')}
-        </button>
-      </div>
-
-      {transactions.length === 0 ? (
-        <div className="empty-state">
-          <p>{t('transactions.noTransactions')}</p>
-          <p>{t('transactions.noTransactionsDescription')}</p>
-        </div>
-      ) : (
-        <div className="transactions-list">
-          {transactions.map((transaction) => (
-            <div
-              key={transaction.id}
-              className={`transaction-item ${transaction.type.toLowerCase()}`}
-            >
-              <div className="transaction-info">
-                <div className="transaction-main">
-                  <span className={`transaction-type ${transaction.type.toLowerCase()}`}>
-                    {transaction.type === 'CREDIT' ? '+' : '-'}
-                  </span>
-                  <span className="transaction-category">{translateCategoryNameByString(transaction.category)}</span>
-                  {transaction.subcategory && (
-                    <span className="transaction-subcategory">/ {translateSubcategoryNameByString(transaction.subcategory)}</span>
-                  )}
-                </div>
-                {transaction.description && (
-                  <p className="transaction-description">{transaction.description}</p>
-                )}
-                <span className="transaction-date">{formatDate(transaction.date)}</span>
-              </div>
-              <div className="transaction-actions">
-                <span className={`transaction-amount ${transaction.type.toLowerCase()}`}>
-                  {transaction.type === 'CREDIT' ? '+' : '-'}
-                  {formatCurrency(transaction.amount, wallet?.currency)}
-                </span>
-                <button
-                  className="btn btn-danger btn-small"
-                  onClick={() => handleDeleteTransaction(transaction.id)}
-                  title="Delete transaction"
-                >
-                  🗑️
-                </button>
-              </div>
+          <div className="wallet-header-content">
+            <div className="wallet-header-info">
+              <h1>{wallet.name}</h1>
+              <span className="wallet-currency-badge">{wallet.currency}</span>
             </div>
-          ))}
+            <p className="wallet-balance-large">
+              {formatCurrency(
+                transactions.filter(t => t.type === 'CREDIT').reduce((sum, t) => sum + (Number(t.amount) || 0), 0) -
+                transactions.filter(t => t.type === 'DEBIT').reduce((sum, t) => sum + (Number(t.amount) || 0), 0),
+                wallet.currency
+              )}
+            </p>
+          </div>
         </div>
       )}
+
+      <div className="transactions-section">
+        <div className="section-toolbar">
+          <div className="toolbar-left">
+            <h2>{t('transactions.title')}</h2>
+            <span className="transactions-count">{transactions.length}</span>
+          </div>
+          <div className="toolbar-right">
+            <button
+              type="button"
+              className={`btn-filter ${showFilters ? 'active' : ''} ${hasActiveFilters ? 'has-filters' : ''}`}
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M2 4H14M4 8H12M6 12H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              {t('transactions.filters')}
+              {hasActiveFilters && <span className="filter-badge"></span>}
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={() => setShowModal(true)}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+              {t('transactions.newTransaction')}
+            </button>
+          </div>
+        </div>
+
+        {showFilters && (
+          <div className="filters-panel">
+            <div className="filters-grid">
+              <div className="filter-item">
+                <label>{t('transactions.type')}</label>
+                <Dropdown
+                  options={[
+                    { value: '', label: t('common.all'), icon: '📋' },
+                    { value: 'DEBIT', label: t('transactions.debit'), icon: '📤' },
+                    { value: 'CREDIT', label: t('transactions.credit'), icon: '📥' },
+                  ]}
+                  value={filterType}
+                  onChange={(val) => setFilterType(val as TransactionType | '')}
+                />
+              </div>
+
+              <div className="filter-item">
+                <label htmlFor="filterFromDate">{t('transactions.fromDate')}</label>
+                <input
+                  type="date"
+                  id="filterFromDate"
+                  value={filterFromDate}
+                  onChange={(e) => setFilterFromDate(e.target.value)}
+                />
+              </div>
+
+              <div className="filter-item">
+                <label htmlFor="filterToDate">{t('transactions.toDate')}</label>
+                <input
+                  type="date"
+                  id="filterToDate"
+                  value={filterToDate}
+                  onChange={(e) => setFilterToDate(e.target.value)}
+                />
+              </div>
+
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  className="btn-clear-filters"
+                  onClick={clearFilters}
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M10.5 3.5L3.5 10.5M3.5 3.5L10.5 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                  {t('transactions.clearFilters')}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {transactions.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">📝</div>
+            <h3>{t('transactions.noTransactions')}</h3>
+            <p>{t('transactions.noTransactionsDescription')}</p>
+            <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+              + {t('transactions.newTransaction')}
+            </button>
+          </div>
+        ) : (
+          <div className="transactions-list">
+            {transactions.map((transaction) => (
+              <div
+                key={transaction.id}
+                className={`transaction-item ${transaction.type.toLowerCase()}`}
+              >
+                <div className="transaction-icon-wrapper">
+                  <div className={`transaction-type-icon ${transaction.type.toLowerCase()}`}>
+                    {transaction.type === 'CREDIT' ? '↓' : '↑'}
+                  </div>
+                </div>
+                <div className="transaction-info">
+                  <div className="transaction-main">
+                    <span className="transaction-category">{translateCategoryNameByString(transaction.category)}</span>
+                    {transaction.subcategory && (
+                      <span className="transaction-subcategory">• {translateSubcategoryNameByString(transaction.subcategory)}</span>
+                    )}
+                  </div>
+                  {transaction.description && (
+                    <p className="transaction-description">{transaction.description}</p>
+                  )}
+                  <span className="transaction-date">{formatDate(transaction.date)}</span>
+                </div>
+                <div className="transaction-actions">
+                  <span className={`transaction-amount ${transaction.type.toLowerCase()}`}>
+                    {transaction.type === 'CREDIT' ? '+' : '-'}
+                    {formatCurrency(transaction.amount, wallet?.currency)}
+                  </span>
+                  <button
+                    className="btn-icon-action btn-icon-delete"
+                    onClick={() => handleDeleteTransaction(transaction.id)}
+                    title={t('common.delete')}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M3.75 5.25H14.25" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M7.5 8.25V12.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M10.5 8.25V12.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M4.5 5.25L5.25 14.25C5.25 14.6478 5.40804 15.0294 5.68934 15.3107C5.97064 15.592 6.35218 15.75 6.75 15.75H11.25C11.6478 15.75 12.0294 15.592 12.3107 15.3107C12.592 15.0294 12.75 14.6478 12.75 14.25L13.5 5.25" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M7.5 5.25V3C7.5 2.80109 7.57902 2.61032 7.71967 2.46967C7.86032 2.32902 8.05109 2.25 8.25 2.25H9.75C9.94891 2.25 10.1397 2.32902 10.2803 2.46967C10.421 2.61032 10.5 2.80109 10.5 3V5.25" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Create Transaction Modal */}
       {showModal && (

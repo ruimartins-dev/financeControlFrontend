@@ -37,7 +37,6 @@ export const LanguageSelector: React.FC = () => {
         onClick={() => setIsOpen(!isOpen)}
         aria-label="Select language"
       >
-        <span className="language-flag">{currentLanguage.flag}</span>
         <span className="language-code">{currentLanguage.code.toUpperCase()}</span>
         <span className="language-arrow">{isOpen ? '▲' : '▼'}</span>
       </button>

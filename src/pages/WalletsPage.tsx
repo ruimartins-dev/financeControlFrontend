@@ -3,26 +3,56 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getJson, postJson, ApiError } from '../lib/api';
 import { Toast, useToast } from '../components/Toast';
-import type { WalletDto, CreateWalletDto } from '../types/dtos';
+import type { WalletDto, CreateWalletDto, TransactionDto } from '../types/dtos';
+
+// Wallet with calculated balance
+interface WalletWithBalance extends WalletDto {
+  calculatedBalance: number;
+}
 
 /**
  * Wallets Page Component
  */
 export const WalletsPage: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const [wallets, setWallets] = useState<WalletDto[]>([]);
+  const [wallets, setWallets] = useState<WalletWithBalance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [newWalletName, setNewWalletName] = useState('');
   const [newWalletCurrency, setNewWalletCurrency] = useState('EUR');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [totalBalance, setTotalBalance] = useState(0);
 
   const [toast, showToast, hideToast] = useToast();
 
   const fetchWallets = useCallback(async () => {
     try {
       const data = await getJson<WalletDto[]>('/api/wallets');
-      setWallets(data);
+      
+      // Fetch transactions for each wallet to calculate balance
+      const walletsWithBalance: WalletWithBalance[] = [];
+      let total = 0;
+      
+      for (const wallet of data) {
+        try {
+          const transactions = await getJson<TransactionDto[]>(`/api/wallets/${wallet.id}/transactions`);
+          const income = transactions
+            .filter(t => t.type === 'CREDIT')
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+          const expenses = transactions
+            .filter(t => t.type === 'DEBIT')
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+          const calculatedBalance = income - expenses;
+          
+          walletsWithBalance.push({ ...wallet, calculatedBalance });
+          total += calculatedBalance;
+        } catch {
+          walletsWithBalance.push({ ...wallet, calculatedBalance: 0 });
+        }
+      }
+      
+      setWallets(walletsWithBalance);
+      setTotalBalance(total);
     } catch (error) {
       if (error instanceof ApiError) {
         showToast(error.message, 'error');
@@ -55,7 +85,7 @@ export const WalletsPage: React.FC = () => {
       };
 
       const newWallet = await postJson<WalletDto>('/api/wallets', walletData);
-      setWallets([...wallets, newWallet]);
+      setWallets([...wallets, { ...newWallet, calculatedBalance: 0 }]);
       setShowModal(false);
       setNewWalletName('');
       setNewWalletCurrency('EUR');
@@ -89,8 +119,6 @@ export const WalletsPage: React.FC = () => {
       default: return '💰';
     }
   };
-
-  const totalBalance = wallets.reduce((sum, wallet) => sum + (Number(wallet.balance) || 0), 0);
 
   if (isLoading) {
     return (
@@ -148,8 +176,8 @@ export const WalletsPage: React.FC = () => {
               </div>
               <h3>{wallet.name}</h3>
               <span className="currency-badge">{wallet.currency}</span>
-              <p className={`wallet-card-balance ${(Number(wallet.balance) || 0) >= 0 ? 'positive' : 'negative'}`}>
-                {formatCurrency(wallet.balance, wallet.currency)}
+              <p className={`wallet-card-balance ${(wallet.calculatedBalance || 0) >= 0 ? 'positive' : 'negative'}`}>
+                {formatCurrency(wallet.calculatedBalance, wallet.currency)}
               </p>
             </Link>
           ))}

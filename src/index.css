@@ -845,7 +845,7 @@ button {
 .quick-action-label {
   font-size: 0.9rem;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var (--text-secondary);
 }
 
 /* ========== Empty States ========== */
@@ -1267,35 +1267,87 @@ button {
   align-items: center;
   gap: 8px;
   color: var(--text-secondary);
-  font-size: 0.9rem;
-  margin-bottom: 24px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 20px;
   transition: var(--transition-fast);
+  padding: 6px 12px;
+  margin-left: -12px;
+  border-radius: var(--radius-md);
 }
 
 .back-link:hover {
   color: var(--primary);
+  background-color: var(--primary-light);
+}
+
+.back-link svg {
+  flex-shrink: 0;
 }
 
 .wallet-header {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(167, 139, 250, 0.05));
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(167, 139, 250, 0.04));
   border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
-  padding: 32px;
-  margin-bottom: 32px;
+  padding: 24px 28px;
+  margin-bottom: 24px;
+}
+
+.wallet-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.wallet-header-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .wallet-header h1 {
-  font-size: 1.5rem;
-  margin-bottom: 8px;
+  font-size: 1.375rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.wallet-currency-badge {
+  display: inline-flex;
+  padding: 4px 10px;
+  background-color: var(--bg-tertiary);
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
 }
 
 .wallet-balance-large {
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 700;
   background: linear-gradient(135deg, var(--primary), #a78bfa);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .wallet-header {
+    padding: 20px;
+  }
+  
+  .wallet-header-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .wallet-balance-large {
+    font-size: 1.75rem;
+  }
 }
 
 /* Filters */
@@ -1545,7 +1597,7 @@ button {
 
 .subcategory-count {
   font-size: 0.8rem;
-  color: var(--text-muted);
+  color: var (--text-muted);
 }
 
 .subcategories-list {
@@ -1768,16 +1820,16 @@ button {
 .metric-card {
   background-color: var (--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-radius: var (--radius-lg);
   padding: 24px;
   display: flex;
   gap: 16px;
-  transition: var(--transition-fast);
+  transition: var (--transition-fast);
 }
 
 .metric-card:hover {
   transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  box-shadow: var (--shadow-md);
 }
 
 .metric-card.income {
@@ -2481,4 +2533,631 @@ button {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
   margin-left: -1px;
+}
+
+/* ========== Wallet Detail Page - Enhanced ========== */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 20px;
+  transition: var(--transition-fast);
+  padding: 6px 12px;
+  margin-left: -12px;
+  border-radius: var(--radius-md);
+}
+
+.back-link:hover {
+  color: var(--primary);
+  background-color: var(--primary-light);
+}
+
+.back-link svg {
+  flex-shrink: 0;
+}
+
+.wallet-header {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(167, 139, 250, 0.04));
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  padding: 24px 28px;
+  margin-bottom: 24px;
+}
+
+.wallet-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.wallet-header-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.wallet-header h1 {
+  font-size: 1.375rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.wallet-currency-badge {
+  display: inline-flex;
+  padding: 4px 10px;
+  background-color: var(--bg-tertiary);
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.wallet-balance-large {
+  font-size: 2rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--primary), #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .wallet-header {
+    padding: 20px;
+  }
+  
+  .wallet-header-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .wallet-balance-large {
+    font-size: 1.75rem;
+  }
+}
+
+/* ========== Transactions Section ========== */
+.transactions-section {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+
+.section-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toolbar-left h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.transactions-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 8px;
+  background-color: var(--bg-tertiary);
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Filter Button */
+.btn-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  position: relative;
+}
+
+.btn-filter:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-light);
+}
+
+.btn-filter.active {
+  background-color: var(--primary-light);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.btn-filter.has-filters .filter-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 10px;
+  height: 10px;
+  background-color: var(--primary);
+  border-radius: 50%;
+  border: 2px solid var(--bg-secondary);
+}
+
+.btn-filter svg {
+  flex-shrink: 0;
+}
+
+/* Filters Panel */
+.filters-panel {
+  padding: 16px 20px;
+  background-color: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.filters-grid {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 140px;
+  flex: 1;
+  max-width: 200px;
+}
+
+.filter-item label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.filter-item input[type="date"] {
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  transition: var(--transition-fast);
+}
+
+.filter-item input[type="date"]:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.filter-item .dropdown-trigger {
+  padding: 8px 12px;
+  font-size: 0.85rem;
+}
+
+.btn-clear-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--danger);
+  background-color: var(--danger-light);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+.btn-clear-filters:hover {
+  background-color: var(--danger);
+  color: white;
+}
+
+@media (max-width: 768px) {
+  .section-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .toolbar-left {
+    justify-content: space-between;
+  }
+  
+  .toolbar-right {
+    justify-content: stretch;
+  }
+  
+  .toolbar-right .btn {
+    flex: 1;
+    justify-content: center;
+  }
+  
+  .filters-grid {
+    flex-direction: column;
+  }
+  
+  .filter-item {
+    max-width: none;
+    width: 100%;
+  }
+  
+  .btn-clear-filters {
+    margin-left: 0;
+    justify-content: center;
+  }
+}
+
+/* ========== Enhanced Transaction Items ========== */
+.transactions-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.transaction-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background-color: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  transition: var(--transition-fast);
+  border-left: none;
+  border-radius: 0;
+}
+
+.transaction-item:last-child {
+  border-bottom: none;
+}
+
+.transaction-item:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.transaction-item.credit {
+  border-left: none;
+}
+
+.transaction-item.debit {
+  border-left: none;
+}
+
+.transaction-icon-wrapper {
+  flex-shrink: 0;
+}
+
+.transaction-type-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.transaction-type-icon.credit {
+  background-color: var(--success-light);
+  color: var(--success);
+}
+
+.transaction-type-icon.debit {
+  background-color: var(--danger-light);
+  color: var(--danger);
+}
+
+.transaction-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.transaction-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+
+.transaction-category {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.transaction-subcategory {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.transaction-description {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin: 2px 0 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.transaction-date {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  display: block;
+}
+
+.transaction-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.transaction-amount {
+  font-size: 1rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.transaction-amount.credit {
+  color: var(--success);
+}
+
+.transaction-amount.debit {
+  color: var(--danger);
+}
+
+.btn-icon-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background-color: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  opacity: 0;
+}
+
+.transaction-item:hover .btn-icon-delete {
+  opacity: 1;
+}
+
+.btn-icon-delete:hover {
+  background-color: var(--danger-light);
+  color: var(--danger);
+}
+
+@media (max-width: 640px) {
+  .transaction-item {
+    padding: 14px 16px;
+  }
+  
+  .transaction-type-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 0.9rem;
+  }
+  
+  .btn-icon-delete {
+    opacity: 1;
+  }
+  
+  .transaction-amount {
+    font-size: 0.9rem;
+  }
+}
+
+/* ========== Empty State in Transactions Section ========== */
+.transactions-section .empty-state {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  padding: 48px 20px;
+}
+
+/* Icon Action Buttons */
+.btn-icon-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.transaction-item:hover .btn-icon-action {
+  opacity: 1;
+}
+
+.transaction-item .btn-icon-action {
+  opacity: 0;
+}
+
+.btn-icon-action:hover {
+  background-color: var(--bg-tertiary);
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+.btn-icon-action.btn-icon-delete:hover {
+  background-color: var(--danger-light);
+  border-color: transparent;
+  color: var(--danger);
+}
+
+.btn-icon-action:active {
+  transform: scale(0.95);
+}
+
+.btn-icon-action svg {
+  flex-shrink: 0;
+}
+
+/* Categories page - always visible delete buttons */
+.category-actions .btn-icon-action,
+.subcategory-item .btn-icon-action {
+  opacity: 0.6;
+}
+
+.category-header:hover .btn-icon-action,
+.subcategory-item:hover .btn-icon-action {
+  opacity: 1;
+}
+
+@media (max-width: 640px) {
+  .btn-icon-action {
+    opacity: 1;
+    width: 32px;
+    height: 32px;
+  }
+  
+  .transaction-item .btn-icon-action,
+  .category-actions .btn-icon-action,
+  .subcategory-item .btn-icon-action {
+    opacity: 1;
+  }
+  
+  .btn-icon-action svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+/* Icon Action Buttons */
+.btn-icon-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  opacity: 0;
+}
+
+.transaction-item:hover .btn-icon-action {
+  opacity: 1;
+}
+
+.transaction-item .btn-icon-action {
+  opacity: 0;
+}
+
+.btn-icon-action:hover {
+  background-color: var(--bg-tertiary);
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+.btn-icon-action.btn-icon-delete:hover {
+  background-color: var(--danger-light);
+  border-color: transparent;
+  color: var(--danger);
+}
+
+.btn-icon-action:active {
+  transform: scale(0.95);
+}
+
+.btn-icon-action svg {
+  flex-shrink: 0;
+}
+
+/* Categories page - always visible delete buttons */
+.category-actions .btn-icon-action,
+.subcategory-item .btn-icon-action {
+  opacity: 0.6;
+}
+
+.category-header:hover .btn-icon-action,
+.subcategory-item:hover .btn-icon-action {
+  opacity: 1;
+}
+
+@media (max-width: 640px) {
+  .btn-icon-action {
+    opacity: 1;
+    width: 32px;
+    height: 32px;
+  }
+  
+  .transaction-item .btn-icon-action,
+  .category-actions .btn-icon-action,
+  .subcategory-item .btn-icon-action {
+    opacity: 1;
+  }
+  
+  .btn-icon-action svg {
+    width: 16px;
+    height: 16px;
+  }
 }
