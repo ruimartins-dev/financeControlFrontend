@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { LanguageSelector } from './LanguageSelector';
+import logoImg from '../assets/logo_finance_control.png';
 
 /**
  * Sidebar Component
@@ -37,7 +38,7 @@ export const Sidebar: React.FC = () => {
       <header className="mobile-header">
         <div className="mobile-header-content">
           <div className="logo">
-            <span className="logo-icon">💰</span>
+            <img src={logoImg} alt="FinanceControl" className="logo-img" />
             <span className="logo-text">FinanceControl</span>
           </div>
           <div className="mobile-header-actions">
@@ -64,11 +65,8 @@ export const Sidebar: React.FC = () => {
       <aside className={`sidebar ${isMobileMenuOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <div className="logo">
-            <span className="logo-icon">💰</span>
+            <img src={logoImg} alt="FinanceControl" className="logo-img" />
             <span className="logo-text">FinanceControl</span>
-          </div>
-          <div className="sidebar-language">
-            <LanguageSelector />
           </div>
         </div>
 
@@ -122,6 +120,12 @@ export const Sidebar: React.FC = () => {
           </div>
         </nav>
 
+        {/* Language Selector */}
+        <div className="sidebar-language">
+          <LanguageSelector />
+        </div>
+
+        {/* User Footer */}
         <div className="sidebar-footer">
           <div className="user-info">
             <div className="user-avatar">

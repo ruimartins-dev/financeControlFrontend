@@ -1,48 +1,84 @@
-import React, { useState, useEffect, useCallback, type FormEvent } from 'react';
+import React, { useState, useEffect, useCallback, useRef, type FormEvent } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { getJson, postJson, deleteJson, ApiError } from '../lib/api';
+import { getJson, postJson, deleteJson, postFormData, ApiError } from '../lib/api';
 import { Toast, useToast } from '../components/Toast';
 import { Dropdown, type DropdownOption } from '../components/Dropdown';
-import type { TransactionDto, CreateTransactionDto, TransactionType, WalletDto, CategoryDto, SubcategoryDto } from '../types/dtos';
+import { TransactionConfirmationModal } from '../components/TransactionConfirmationModal';
+import type { TransactionDto, CreateTransactionDto, TransactionType, WalletDto, CategoryDto, SubcategoryDto, ImportResultDto, TransactionDraftDto, SpeechRecognitionType, SpeechRecognitionEventType } from '../types/dtos';
 
 // Mapeamento de nomes de categorias padrão para chaves de tradução
 const categoryNameToKey: Record<string, string> = {
-  'Bills & Utilities': 'billsUtilities',
-  'Education': 'education',
-  'Entertainment': 'entertainment',
   'Food & Dining': 'foodDining',
+  'Transportation': 'transportation',
+  'Shopping': 'shopping',
+  'Bills & Utilities': 'billsUtilities',
+  'Entertainment': 'entertainment',
+  'Health': 'health',
+  'Education': 'education',
+  'Other Expenses': 'otherExpenses',
+  'Salary': 'salary',
+  'Investments': 'investments',
   'Freelance': 'freelance',
   'Gifts Received': 'giftsReceived',
+  'Other Income': 'otherIncome',
 };
 
 // Mapeamento de nomes de subcategorias padrão para chaves de tradução
 const subcategoryNameToKey: Record<string, string> = {
+  'Restaurants': 'restaurants',
+  'Groceries': 'groceries',
+  'Fast Food': 'fastFood',
+  'Coffee': 'coffee',
+  'Delivery': 'delivery',
+  'Fuel': 'fuel',
+  'Public Transport': 'publicTransport',
+  'Taxi/Uber': 'taxiUber',
+  'Parking': 'parking',
+  'Car Maintenance': 'carMaintenance',
+  'Clothing': 'clothing',
+  'Electronics': 'electronics',
+  'Home & Garden': 'homeGarden',
+  'Personal Care': 'personalCare',
+  'Gifts': 'gifts',
   'Electricity': 'electricity',
-  'General': 'general',
+  'Water': 'water',
   'Internet': 'internet',
   'Phone': 'phone',
   'Rent/Mortgage': 'rentMortgage',
-  'Water': 'water',
-  'Books': 'books',
-  'Courses': 'courses',
-  'School Supplies': 'schoolSupplies',
-  'Tuition': 'tuition',
-  'Concerts': 'concerts',
-  'Games': 'games',
   'Movies': 'movies',
+  'Games': 'games',
+  'Concerts': 'concerts',
   'Sports': 'sports',
   'Subscriptions': 'subscriptions',
-  'Coffee': 'coffee',
-  'Delivery': 'delivery',
-  'Fast Food': 'fastFood',
-  'Groceries': 'groceries',
-  'Restaurants': 'restaurants',
+  'Medical': 'medical',
+  'Pharmacy': 'pharmacy',
+  'Gym': 'gym',
+  'Insurance': 'insurance',
+  'Courses': 'courses',
+  'Books': 'books',
+  'School Supplies': 'schoolSupplies',
+  'Tuition': 'tuition',
+  'Miscellaneous': 'miscellaneous',
+  'Fees': 'fees',
+  'Donations': 'donations',
+  'Monthly Salary': 'monthlySalary',
+  'Bonus': 'bonus',
+  'Overtime': 'overtime',
+  'Commission': 'commission',
+  'Dividends': 'dividends',
+  'Interest': 'interest',
+  'Capital Gains': 'capitalGains',
+  'Rental Income': 'rentalIncome',
   'Consulting': 'consulting',
-  'Gigs': 'gigs',
   'Projects': 'projects',
+  'Gigs': 'gigs',
   'Birthday': 'birthday',
   'Holiday': 'holiday',
+  'Other': 'other',
+  'Refunds': 'refunds',
+  'Cashback': 'cashback',
+  'Reimbursements': 'reimbursements',
 };
 
 /**
@@ -139,6 +175,23 @@ export const WalletDetailPage: React.FC = () => {
   const [newSubcategoryName, setNewSubcategoryName] = useState('');
   const [subcategoryCategoryId, setSubcategoryCategoryId] = useState<number | ''>('');
   const [isCreatingSubcategory, setIsCreatingSubcategory] = useState(false);
+
+  // Quick Add (Text/Voice) state
+  const [quickAddText, setQuickAddText] = useState('');
+  const [isParsingText, setIsParsingText] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const recognitionRef = useRef<SpeechRecognitionType | null>(null);
+
+  // CSV Import state
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Transaction draft confirmation state (two-step flow)
+  const [transactionDraft, setTransactionDraft] = useState<TransactionDraftDto | null>(null);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const [isConfirmingTransaction, setIsConfirmingTransaction] = useState(false);
 
   // Hooks
   const [toast, showToast, hideToast] = useToast();
@@ -252,6 +305,12 @@ export const WalletDetailPage: React.FC = () => {
       setNewSubcategoryId('');
     }
   }, [newCategoryId, categories]);
+
+  // Check if Web Speech API is supported
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    setVoiceSupported(!!SpeechRecognition);
+  }, []);
 
   /**
    * Handle create transaction form submission
@@ -439,6 +498,206 @@ export const WalletDetailPage: React.FC = () => {
     setShowSubcategoryModal(true);
   };
 
+  /**
+   * Handle Quick Add from text - sends text to backend for classification (Step 1)
+   * Returns a draft that user can review before saving
+   */
+  const handleQuickAddFromText = async () => {
+    if (!quickAddText.trim()) {
+      showToast(t('transactions.parseError'), 'error');
+      return;
+    }
+
+    setIsParsingText(true);
+
+    try {
+      // Send text to backend for classification - returns a draft, not a saved transaction
+      const draft = await postJson<TransactionDraftDto>('/api/voice/classify', {
+        walletId: Number(id),
+        text: quickAddText.trim(),
+      });
+
+      // Store the draft and open confirmation modal
+      setTransactionDraft(draft);
+      setShowConfirmationModal(true);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        showToast(error.message, 'error');
+      } else {
+        showToast(t('transactions.parseError'), 'error');
+      }
+    } finally {
+      setIsParsingText(false);
+    }
+  };
+
+  /**
+   * Handle confirmation of transaction draft (Step 2)
+   * Saves the edited transaction to the backend
+   */
+  const handleConfirmTransaction = async (editedData: TransactionDraftDto) => {
+    setIsConfirmingTransaction(true);
+
+    try {
+      // Send the edited data to create the transaction
+      const transactionData: CreateTransactionDto = {
+        type: editedData.type,
+        category: editedData.category,
+        subcategory: editedData.subcategory,
+        amount: editedData.amount,
+        description: editedData.description,
+        date: editedData.date,
+      };
+
+      const newTransaction = await postJson<TransactionDto>(
+        `/api/wallets/${id}/transactions`,
+        transactionData
+      );
+
+      // Add new transaction to the list
+      setTransactions([newTransaction, ...transactions]);
+
+      // Close modal and clear state
+      setShowConfirmationModal(false);
+      setTransactionDraft(null);
+      setQuickAddText('');
+
+      showToast(t('transactions.parseSuccess'), 'success');
+    } catch (error) {
+      if (error instanceof ApiError) {
+        showToast(error.message, 'error');
+      } else {
+        showToast(t('transactions.createError'), 'error');
+      }
+    } finally {
+      setIsConfirmingTransaction(false);
+    }
+  };
+
+  /**
+   * Handle cancellation of transaction confirmation
+   */
+  const handleCancelConfirmation = () => {
+    setShowConfirmationModal(false);
+    setTransactionDraft(null);
+  };
+
+  /**
+   * Start voice recognition using Web Speech API
+   */
+  const startVoiceRecognition = () => {
+    // Check if Speech Recognition is supported
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (!SpeechRecognition) {
+      showToast(t('transactions.voiceNotSupported'), 'error');
+      return;
+    }
+
+    // Create new recognition instance
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'pt-PT'; // Portuguese language
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    // Handle successful recognition
+    recognition.onresult = (event: SpeechRecognitionEventType) => {
+      const transcript = event.results[0][0].transcript;
+      setQuickAddText(transcript);
+      setIsListening(false);
+    };
+
+    // Handle errors
+    recognition.onerror = () => {
+      setIsListening(false);
+      showToast(t('transactions.voiceNotSupported'), 'error');
+    };
+
+    // Handle end of recognition
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    // Store reference and start
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  };
+
+  /**
+   * Stop voice recognition
+   */
+  const stopVoiceRecognition = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    }
+  };
+
+  /**
+   * Handle file selection for CSV import
+   */
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    
+    if (file) {
+      // Validate file type
+      if (!file.name.endsWith('.csv') && file.type !== 'text/csv') {
+        showToast(t('transactions.invalidFileType'), 'error');
+        setSelectedFile(null);
+        return;
+      }
+      setSelectedFile(file);
+    }
+  };
+
+  /**
+   * Handle CSV import - uploads file to backend
+   */
+  const handleCsvImport = async () => {
+    if (!selectedFile) {
+      showToast(t('transactions.noFileSelected'), 'error');
+      return;
+    }
+
+    setIsImporting(true);
+
+    try {
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      // Send to backend
+      const result = await postFormData<ImportResultDto>(
+        `/api/wallets/${id}/import`,
+        formData
+      );
+
+      // Refresh transactions list
+      await fetchTransactions();
+
+      // Clear file selection
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
+      // Show success message with details
+      showToast(
+        t('transactions.importSuccess', { created: result.created, skipped: result.skipped }),
+        'success'
+      );
+    } catch (error) {
+      if (error instanceof ApiError) {
+        showToast(error.message, 'error');
+      } else {
+        showToast(t('transactions.importError'), 'error');
+      }
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const formatCurrency = (amount: number | undefined | null, currency: string = 'EUR'): string => {
     const value = Number(amount) || 0;
     return new Intl.NumberFormat('pt-PT', {
@@ -489,6 +748,115 @@ export const WalletDetailPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Quick Add and Import Section */}
+      <div className="quick-tools-section">
+        {/* Quick Add (Text/Voice) */}
+        <div className="quick-tool-card">
+          <div className="quick-tool-header">
+            <h3>✨ {t('transactions.quickAdd')}</h3>
+            <p className="quick-tool-description">{t('transactions.quickAddDescription')}</p>
+          </div>
+          <div className="quick-tool-content">
+            <div className="quick-add-input-group">
+              <textarea
+                value={quickAddText}
+                onChange={(e) => setQuickAddText(e.target.value)}
+                placeholder={t('transactions.textPlaceholder')}
+                disabled={isParsingText}
+                rows={2}
+                className="quick-add-textarea"
+              />
+              <div className="quick-add-actions">
+                {/* Voice Button - only shown if supported */}
+                {voiceSupported && (
+                  <button
+                    type="button"
+                    className={`btn-voice ${isListening ? 'listening' : ''}`}
+                    onClick={isListening ? stopVoiceRecognition : startVoiceRecognition}
+                    disabled={isParsingText}
+                    title={isListening ? t('transactions.stopVoice') : t('transactions.startVoice')}
+                  >
+                    {isListening ? (
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <rect x="6" y="6" width="8" height="8" rx="1" fill="currentColor"/>
+                      </svg>
+                    ) : (
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M10 2C8.89543 2 8 2.89543 8 4V10C8 11.1046 8.89543 12 10 12C11.1046 12 12 11.1046 12 10V4C12 2.89543 11.1046 2 10 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M15 9V10C15 12.7614 12.7614 15 10 15C7.23858 15 5 12.7614 5 10V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M10 15V18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                    {isListening && <span className="listening-indicator"></span>}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleQuickAddFromText}
+                  disabled={isParsingText || !quickAddText.trim()}
+                >
+                  {isParsingText ? (
+                    <>
+                      <span className="spinner-small"></span>
+                      {t('transactions.parsing')}
+                    </>
+                  ) : (
+                    t('transactions.addFromText')
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* CSV Import */}
+        <div className="quick-tool-card">
+          <div className="quick-tool-header">
+            <h3>📄 {t('transactions.importCsv')}</h3>
+            <p className="quick-tool-description">{t('transactions.importCsvDescription')}</p>
+          </div>
+          <div className="quick-tool-content">
+            <div className="csv-import-group">
+              <div className="file-input-wrapper">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={handleFileSelect}
+                  disabled={isImporting}
+                  id="csvFileInput"
+                  className="file-input-hidden"
+                />
+                <label htmlFor="csvFileInput" className="file-input-label">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M17 12V15C17 15.5304 16.7893 16.0391 16.4142 16.4142C16.0391 16.7893 15.5304 17 15 17H5C4.46957 17 3.96086 16.7893 3.58579 16.4142C3.21071 16.0391 3 15.5304 3 15V12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M14 6L10 2L6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M10 2V12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  {selectedFile ? selectedFile.name : t('transactions.selectFile')}
+                </label>
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleCsvImport}
+                disabled={isImporting || !selectedFile}
+              >
+                {isImporting ? (
+                  <>
+                    <span className="spinner-small"></span>
+                    {t('transactions.importing')}
+                  </>
+                ) : (
+                  t('transactions.import')
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="transactions-section">
         <div className="section-toolbar">
@@ -861,6 +1229,16 @@ export const WalletDetailPage: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {showConfirmationModal && transactionDraft && (
+        <TransactionConfirmationModal
+          draft={transactionDraft}
+          categories={categories}
+          onConfirm={handleConfirmTransaction}
+          onCancel={handleCancelConfirmation}
+          isConfirming={isConfirmingTransaction}
+        />
       )}
 
       {toast && (

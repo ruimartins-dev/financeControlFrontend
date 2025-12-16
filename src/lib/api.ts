@@ -160,3 +160,34 @@ export const deleteJson = async <T>(path: string, includeAuth: boolean = true): 
 
   return handleResponse<T>(response);
 };
+
+/**
+ * Make a POST request with multipart/form-data (for file uploads)
+ * @param path - API endpoint path (e.g., '/api/wallets/1/import')
+ * @param formData - FormData object containing the file and other fields
+ * @param includeAuth - Whether to include Authorization header (default: true)
+ */
+export const postFormData = async <T>(
+  path: string,
+  formData: FormData,
+  includeAuth: boolean = true
+): Promise<T> => {
+  const url = `${getApiUrl()}${path}`;
+
+  // Build headers without Content-Type (browser will set it automatically for FormData)
+  const headers: HeadersInit = {};
+  if (includeAuth) {
+    const credentials = getStoredCredentials();
+    if (credentials) {
+      headers['Authorization'] = `Basic ${credentials}`;
+    }
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  return handleResponse<T>(response);
+};
